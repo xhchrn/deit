@@ -4,7 +4,8 @@ import torch
 import torch.nn as nn
 from functools import partial
 
-from timm.models.vision_transformer import VisionTransformer, _cfg
+import activations
+from vision_transformer import VisionTransformer, _cfg
 from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_
 
@@ -15,6 +16,12 @@ __all__ = [
     'deit_base_distilled_patch16_224', 'deit_base_patch16_384',
     'deit_base_distilled_patch16_384',
 ]
+
+
+act_layer_dict = {
+    'gelu': nn.GELU, 'GELU': nn.GELU,
+    'SWISH': activations.Swish, 'swish': activations.Swish,
+}
 
 
 class DistilledVisionTransformer(VisionTransformer):

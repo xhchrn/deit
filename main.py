@@ -46,6 +46,9 @@ def get_args_parser():
     parser.add_argument('--model-ema-decay', type=float, default=0.99996, help='')
     parser.add_argument('--model-ema-force-cpu', action='store_true', default=False, help='')
 
+    parser.add_argument('--act-layer', type=str, default='GELU', metavar='ACT',
+                        help='Activation layer option (default: GELU)')
+
     # Optimizer parameters
     parser.add_argument('--opt', default='adamw', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "adamw"')
@@ -245,6 +248,7 @@ def main(args):
         drop_rate=args.drop,
         drop_path_rate=args.drop_path,
         drop_block_rate=None,
+        act_layer=models.act_layer_dict[args.act_layer],
     )
 
     if args.finetune:
