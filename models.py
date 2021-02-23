@@ -18,7 +18,7 @@ __all__ = [
 ]
 
 
-def get_act_layer(act_layer, **kwargs)
+def get_act_layer(act_layer, **kwargs):
     if act_layer.lower() == 'gelu': 
         return nn.GELU
     elif act_layer.lower() == 'swish':
