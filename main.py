@@ -244,7 +244,7 @@ def main(args):
 
     print(f"Creating model: {args.model}")
     act_layer = models.get_act_layer(args.act_layer,
-                                     negative_slope=args.negative_slop)
+                                     negative_slope=args.negative_slope)
     model = create_model(
         args.model,
         pretrained=False,
