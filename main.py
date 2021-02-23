@@ -48,6 +48,8 @@ def get_args_parser():
 
     parser.add_argument('--act-layer', type=str, default='GELU', metavar='ACT',
                         help='Activation layer option (default: GELU)')
+    parser.add_argument('--negative-slope', type=float, default=-1, metavar='ACT_NS',
+                        help='Negative slope hyperparameter for LeakyReLU (default: -1)')
 
     # Optimizer parameters
     parser.add_argument('--opt', default='adamw', type=str, metavar='OPTIMIZER',
@@ -241,6 +243,8 @@ def main(args):
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
     print(f"Creating model: {args.model}")
+    act_layer = models.get_act_layer(args.act_layer,
+                                     negative_slope=args.negative_slop)
     model = create_model(
         args.model,
         pretrained=False,
@@ -248,7 +252,7 @@ def main(args):
         drop_rate=args.drop,
         drop_path_rate=args.drop_path,
         drop_block_rate=None,
-        act_layer=models.act_layer_dict[args.act_layer],
+        act_layer=act_layer,
     )
 
     if args.finetune:

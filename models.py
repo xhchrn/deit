@@ -18,10 +18,17 @@ __all__ = [
 ]
 
 
-act_layer_dict = {
-    'gelu': nn.GELU, 'GELU': nn.GELU,
-    'SWISH': activations.Swish, 'swish': activations.Swish,
-}
+def get_act_layer(act_layer, **kwargs)
+    if act_layer.lower() == 'gelu': 
+        return nn.GELU
+    elif act_layer.lower() == 'swish':
+        return activations.Swish
+    elif act_layer.lower() == 'leakyrelu':
+        negative_slope = kwargs.get('negative_slope', -1)
+        assert negative_slope >= 0.0
+        return partial(nn.LeakyReLU, negative_slope)
+    else:
+        raise NotImplementedError
 
 
 class DistilledVisionTransformer(VisionTransformer):
