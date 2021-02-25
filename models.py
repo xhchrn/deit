@@ -27,6 +27,8 @@ def get_act_layer(act_layer, **kwargs):
         negative_slope = kwargs.get('negative_slope', -1)
         assert negative_slope >= 0.0
         return partial(nn.LeakyReLU, negative_slope)
+    elif act_layer.lower() == 'relu':
+        return nn.ReLU
     else:
         raise NotImplementedError
 
