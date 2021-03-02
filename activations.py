@@ -11,6 +11,19 @@ from torch import nn as nn
 from torch.nn import functional as F
 
 
+class HSwish(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.relu = nn.ReLU6(inplace=True)
+
+    def forward(self, x):
+        return x * self.relu(x + 3.0) / 6.0
+
+    def flops(self, x):
+        # For activation functions, count 0 FLOPS
+        return 0
+
+
 def swish(x, inplace: bool = False):
     """Swish - Described in: https://arxiv.org/abs/1710.05941
     """
