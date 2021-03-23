@@ -35,6 +35,18 @@ def get_act_layer(act_layer, **kwargs):
         raise NotImplementedError
 
 
+def get_norm_layer(norm_layer, **kwargs):
+    if norm_layer.lower() in ['layernorm', 'ln']: 
+        return partial(nn.LayerNorm, eps=1e-6)
+    elif norm_layer.lower() in ['batchnorm', 'bn']: 
+        return partial(nn.BatchNorm1d, eps=1e-6)
+    elif norm_layer.lower() in ['groupnorm', 'gn']: 
+        num_groups = kwargs.get('num_groups', 16)
+        return partial(nn.BatchNorm1d, num_groups=num_groups, eps=1e-6)
+    else:
+        raise NotImplementedError
+
+
 class DistilledVisionTransformer(VisionTransformer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

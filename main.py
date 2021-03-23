@@ -50,6 +50,10 @@ def get_args_parser():
                         help='Activation layer option (default: GELU)')
     parser.add_argument('--negative-slope', type=float, default=-1, metavar='ACT_NS',
                         help='Negative slope hyperparameter for LeakyReLU (default: -1)')
+    parser.add_argument('--norm-layer', type=str, default='LayerNorm', metavar='NORM',
+                        help='Normalization layer option (defualt: LayerNorm)')
+    parser.add_argument('--groupnorm-num-groups', type=int, default=16, metavar='GN_NG',
+                        help='Number of groups in GroupNorm layers (default: 16)')
 
     # Optimizer parameters
     parser.add_argument('--opt', default='adamw', type=str, metavar='OPTIMIZER',
@@ -245,6 +249,8 @@ def main(args):
     print(f"Creating model: {args.model}")
     act_layer = models.get_act_layer(args.act_layer,
                                      negative_slope=args.negative_slope)
+    norm_layer = models.get_norm_layer(args.norm_layer,
+                                       num_groups = args.groupnorm_num_groups)
     model = create_model(
         args.model,
         pretrained=False,
@@ -253,6 +259,7 @@ def main(args):
         drop_path_rate=args.drop_path,
         drop_block_rate=None,
         act_layer=act_layer,
+        norm_layer = norm_layer,
     )
 
     if args.finetune:
