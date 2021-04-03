@@ -138,8 +138,16 @@ class Block(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
     def forward(self, x):
-        x = x + self.drop_path(self.attn(self.norm1(x)))
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        shape = x.size()
+        x = self.norm1(x.reshape(-1, shape[-1])).reshape(*shape)
+        # x = x + self.drop_path(self.attn(self.norm1(x)))
+        x = x + self.drop_path(self.attn(x))
+
+        shape = x.size()
+        x = self.norm1(x.reshape(-1, shape[-1])).reshape(*shape)
+        # x = x + self.drop_path(self.mlp(self.norm2(x)))
+        x = x + self.drop_path(self.mlp(x))
+
         return x
 
 
@@ -274,7 +282,9 @@ class VisionTransformer(nn.Module):
         for blk in self.blocks:
             x = blk(x)
 
-        x = self.norm(x)
+        shape = x.size()
+        x = self.norm(x.reshape(-1, shape[-1])).reshape(*shape)
+        # x = self.norm(x)
         return x[:, 0]
 
     def forward(self, x):
