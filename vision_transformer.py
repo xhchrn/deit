@@ -144,7 +144,7 @@ class Block(nn.Module):
         x = x + self.drop_path(self.attn(x))
 
         shape = x.size()
-        x = self.norm1(x.reshape(-1, shape[-1])).reshape(*shape)
+        x = self.norm2(x.reshape(-1, shape[-1])).reshape(*shape)
         # x = x + self.drop_path(self.mlp(self.norm2(x)))
         x = x + self.drop_path(self.mlp(x))
 
