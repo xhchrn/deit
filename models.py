@@ -42,7 +42,7 @@ def get_norm_layer(norm_layer, **kwargs):
         return partial(nn.BatchNorm1d, eps=1e-6)
     elif norm_layer.lower() in ['groupnorm', 'gn']: 
         num_groups = kwargs.get('num_groups', 16)
-        return partial(nn.BatchNorm1d, num_groups=num_groups, eps=1e-6)
+        return partial(nn.GroupNorm, num_groups=num_groups, eps=1e-6)
     else:
         raise NotImplementedError
 
