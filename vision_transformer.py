@@ -231,7 +231,8 @@ class VisionTransformer(nn.Module):
         num_patches = self.patch_embed.num_patches
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
@@ -294,7 +295,7 @@ class VisionTransformer(nn.Module):
         x = self.patch_embed(x)
 
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
-        x = torch.cat((cls_tokens, x), dim=1)
+        # x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
 
@@ -302,9 +303,12 @@ class VisionTransformer(nn.Module):
             x = blk(x)
 
         shape = x.size()
-        x = self.norm(x.reshape(-1, shape[-1])).reshape(*shape)
+        # x = self.norm(x.reshape(-1, shape[-1])).reshape(*shape)
+        x = self.norm(x.reshape(-1, shape[-1])).reshape(*shape).permute(0,2,1)
         # x = self.norm(x)
-        return x[:, 0]
+        # return x[:, 0]
+        x = F.adaptive_avg_pool1d(x, 1).flatten(1)
+        return x
 
     def forward(self, x):
         x = self.forward_features(x)
