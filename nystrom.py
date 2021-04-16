@@ -22,7 +22,7 @@ class NystromAttention(nn.Module):
         #         bias = False,
         #         groups = self.num_head)
 
-    def forward(self, x, epoch):
+    def forward(self, x):
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         Q, K, V = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
