@@ -46,6 +46,10 @@ def get_args_parser():
     parser.add_argument('--model-ema-decay', type=float, default=0.99996, help='')
     parser.add_argument('--model-ema-force-cpu', action='store_true', default=False, help='')
 
+    parser.add_argument('--attn-layer', type=str, default='Attention', metavar='ATTN',
+                        help='Attention layer option (default: Attention)')
+    parser.add_argument('--nystrom-num-landmarks', type=int, default=32, metavar='NYS_NL',
+                        help='Number of landmarks in Nystrom attention layer (default: 32)')
     parser.add_argument('--act-layer', type=str, default='GELU', metavar='ACT',
                         help='Activation layer option (default: GELU)')
     parser.add_argument('--negative-slope', type=float, default=-1, metavar='ACT_NS',
@@ -247,6 +251,8 @@ def main(args):
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
     print(f"Creating model: {args.model}")
+    attn_layer = models.get_attn_layer(args.attn_layer,
+                                       num_landmarks=args.nystrom_num_landmarks)
     act_layer = models.get_act_layer(args.act_layer,
                                      negative_slope=args.negative_slope)
     norm_layer = models.get_norm_layer(args.norm_layer,
@@ -258,6 +264,7 @@ def main(args):
         drop_rate=args.drop,
         drop_path_rate=args.drop_path,
         drop_block_rate=None,
+        attn_layer=attn_layer,
         act_layer=act_layer,
         norm_layer = norm_layer,
     )

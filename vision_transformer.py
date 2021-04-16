@@ -30,6 +30,8 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.resnet import resnet26d, resnet50d
 from timm.models.registry import register_model
 
+from nystrom import NystromAttention
+
 
 def _cfg(url='', **kwargs):
     return {
@@ -126,10 +128,11 @@ class Attention(nn.Module):
 class Block(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+                 drop_path=0., attn_layer=Attention, act_layer=nn.GELU, norm_layer=nn.LayerNorm):
         super().__init__()
         self.norm1 = norm_layer(dim)
-        self.attn = Attention(
+        # self.attn = Attention(
+        self.attn = attn_layer(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -214,7 +217,7 @@ class VisionTransformer(nn.Module):
     """
     def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., hybrid_backbone=None, norm_layer=nn.LayerNorm, act_layer=nn.GELU):
+                 drop_path_rate=0., hybrid_backbone=None, attn_layer=Attention, norm_layer=nn.LayerNorm, act_layer=nn.GELU):
         super().__init__()
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
@@ -232,11 +235,27 @@ class VisionTransformer(nn.Module):
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
-        self.blocks = nn.ModuleList([
-            Block(
-                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer)
-            for i in range(depth)])
+        self.blocks = nn.ModuleList()
+        for i in range(int(0.5 * depth)):
+            self.blocks.append(
+                Block(
+                    dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias, qk_scale=qk_scale,
+                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i],
+                    attn_layer=attn_layer, norm_layer=norm_layer, act_layer=act_layer
+                )
+            )
+        for i in range(int(0.5 * depth), depth):
+            self.blocks.append(
+                Block(
+                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer)
+            )
+        # self.blocks = nn.ModuleList([
+        #     Block(
+        #         dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+        #         drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer)
+        #     for i in range(depth)])
         self.norm = norm_layer(embed_dim)
 
         # NOTE as per official impl, we could have a pre-logits representation dense layer + tanh here

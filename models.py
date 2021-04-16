@@ -18,6 +18,16 @@ __all__ = [
 ]
 
 
+def get_attn_layer(attn_layer, **kwargs):
+    if attn_layer.lower() == 'attention':
+        from vision_transformer import Attention
+        return Attention
+    elif attn_layer.lower() == 'nystrom':
+        from nystrom import NystromAttention
+        num_landmarks = kwargs.get('num_landmarks', 32)
+        return partial(NystromAttention, num_landmarks=num_landmarks)
+
+
 def get_act_layer(act_layer, **kwargs):
     if act_layer.lower() == 'gelu': 
         return nn.GELU
