@@ -55,12 +55,12 @@ class NystromAttention(nn.Module):
         K = mat
         
         # The entries of K are positive and ||K||_{\infty} = 1 due to softmax
-        if self.init_option == "original":
-            # This original implementation is more conservative to compute coefficient of Z_0. 
-            V = 1 / torch.max(torch.sum(K, dim = -2)) * K.transpose(-1, -2)
-        else:
-            # This is the exact coefficient computation, 1 / ||K||_1, of initialization of Z_0, leading to faster convergence. 
-            V = 1 / torch.max(torch.sum(K, dim = -2), dim = -1).values[:, :, None, None] * K.transpose(-1, -2)
+        # if self.init_option == "original":
+        # This original implementation is more conservative to compute coefficient of Z_0. 
+        V = 1 / torch.max(torch.sum(K, dim = -2)) * K.transpose(-1, -2)
+        # else:
+        #     # This is the exact coefficient computation, 1 / ||K||_1, of initialization of Z_0, leading to faster convergence. 
+        #     V = 1 / torch.max(torch.sum(K, dim = -2), dim = -1).values[:, :, None, None] * K.transpose(-1, -2)
             
         for _ in range(n_iter):
             KV = torch.matmul(K, V)
