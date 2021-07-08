@@ -256,7 +256,7 @@ class Block(nn.Module):
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
-        self.glore_unit = GloRe_Unit(197, 197) if use_glore else None
+        self.glore_unit = GloRe_Unit(192, 192) if use_glore else None
 
     def forward(self, x):
         shape = x.size()
@@ -353,9 +353,9 @@ class VisionTransformer(nn.Module):
                 img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         num_patches = self.patch_embed.num_patches
 
-        # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
@@ -391,7 +391,7 @@ class VisionTransformer(nn.Module):
         self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
         trunc_normal_(self.pos_embed, std=.02)
-        # trunc_normal_(self.cls_token, std=.02)
+        trunc_normal_(self.cls_token, std=.02)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -405,8 +405,8 @@ class VisionTransformer(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        # return {'pos_embed', 'cls_token'}
-        return {'pos_embed'}  #, 'cls_token'}
+        return {'pos_embed', 'cls_token'}
+        # return {'pos_embed'}  #, 'cls_token'}
 
     def get_classifier(self):
         return self.head
@@ -419,8 +419,8 @@ class VisionTransformer(nn.Module):
         B = x.shape[0]
         x = self.patch_embed(x)
 
-        # cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
-        # x = torch.cat((cls_tokens, x), dim=1)
+        cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
 
