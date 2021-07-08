@@ -58,6 +58,8 @@ def get_args_parser():
                         help='Normalization layer option (defualt: LayerNorm)')
     parser.add_argument('--groupnorm-num-groups', type=int, default=16, metavar='GN_NG',
                         help='Number of groups in GroupNorm layers (default: 16)')
+    parser.add_argument('--use-glore', action='store_true',
+                        help='Add one GloRe Unit to each layer')
 
     # Optimizer parameters
     parser.add_argument('--opt', default='adamw', type=str, metavar='OPTIMIZER',
@@ -267,6 +269,7 @@ def main(args):
         attn_layer=attn_layer,
         act_layer=act_layer,
         norm_layer = norm_layer,
+        use_glore = args.use_glore,
     )
 
     if args.finetune:

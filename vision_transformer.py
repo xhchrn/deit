@@ -126,10 +126,126 @@ class Attention(nn.Module):
         return x
 
 
+class GCN(nn.Module):
+    """ Graph convolution unit (single layer)
+    """
+
+    def __init__(self, num_state, num_node, bias=False):
+        super(GCN, self).__init__()
+        self.conv1 = nn.Conv1d(num_node, num_node, kernel_size=1)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv1d(num_state, num_state, kernel_size=1, bias=bias)
+
+    def forward(self, x):
+        # (n, num_state, num_node) -> (n, num_node, num_state)
+        #                          -> (n, num_state, num_node)
+        h = self.conv1(x.permute(0, 2, 1).contiguous()).permute(0, 2, 1)
+        h = h + x
+        # (n, num_state, num_node) -> (n, num_state, num_node)
+        h = self.conv2(self.relu(h))
+        return h
+
+
+class GloRe_Unit(nn.Module):
+    """
+    Graph-based Global Reasoning Unit
+    Parameter:
+        'normalize' is not necessary if the input size is fixed
+    """
+    def __init__(self, num_in, num_mid, 
+                 ConvNd=nn.Conv1d,
+                 BatchNormNd=nn.BatchNorm1d,
+                 normalize=False,
+                 transpose=True,
+                 run_gcn=False):
+        super(GloRe_Unit, self).__init__()
+        
+        self.normalize = normalize
+        self.transpose = transpose
+        self.run_gcn = run_gcn
+        self.num_s = int(2 * num_mid)
+        self.num_n = int(1 * num_mid)
+
+        # reduce dim
+        self.conv_state = ConvNd(num_in, self.num_s, kernel_size=1)
+        # projection map
+        self.conv_proj = ConvNd(num_in, self.num_n, kernel_size=1)
+        # ----------
+        # reasoning via graph convolution
+        if self.run_gcn:
+            self.gcn = GCN(num_state=self.num_s, num_node=self.num_n)
+        # ----------
+        # extend dimension
+        self.conv_extend = ConvNd(self.num_s, num_in, kernel_size=1, bias=False)
+
+        self.blocker = BatchNormNd(num_in, eps=1e-04) # should be zero initialized
+
+
+    def forward(self, x):
+        '''
+        :Original GloRe: param x: (n, c, d, h, w)
+        :param x: (B, N, C)
+        '''
+        n = x.size(0)
+        x_input = x  # (B, N, C)
+        if self.transpose:
+            # (B, N, C) -> (B, C, N)
+            x = x_input.transpose(1,2)
+
+        # Original GloRe: (n, num_in, h, w) --> (n, num_state, h, w)
+        # Original GloRe:                   --> (n, num_state, h*w)
+        x_state_reshaped = self.conv_state(x).view(n, self.num_s, -1)
+
+        # Original GloRe: (n, num_in, h, w) --> (n, num_node, h, w)
+        # Original GloRe:                   --> (n, num_node, h*w)
+        x_proj_reshaped = self.conv_proj(x).view(n, self.num_n, -1)
+
+        # Original GloRe: (n, num_in, h, w) --> (n, num_node, h, w)
+        # Original GloRe:                   --> (n, num_node, h*w)
+        x_rproj_reshaped = x_proj_reshaped
+
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+        # projection: coordinate space -> interaction space
+        ### (n, num_state, h*w) x (n, num_node, h*w)T --> (n, num_state, num_node)
+        # (B, C, N) x (B, C, N)T --> (B, C, C)
+        x_n_state = torch.matmul(x_state_reshaped, x_proj_reshaped.permute(0, 2, 1))
+        if self.normalize:
+            x_n_state = x_n_state * (1. / x_state_reshaped.size(2))
+
+        # reasoning: (n, num_state, num_node) -> (n, num_state, num_node)
+        # if self.run_gcn
+        #     x_n_rel = self.gcn(x_n_state)
+        # else:
+        #     x_n_rel = x_n_state
+        x_n_rel = self.gcn(x_n_state) if self.run_gcn else x_n_state
+
+        # reverse projection: interaction space -> coordinate space
+        # (n, num_state, num_node) x (n, num_node, h*w) --> (n, num_state, h*w)
+        x_state_reshaped = torch.matmul(x_n_rel, x_rproj_reshaped)
+
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+        # NOTE
+        # (n, num_state, h*w) --> (n, num_state, h, w)
+        x_state = x_state_reshaped.view(n, self.num_s, *x.size()[2:])
+
+        # -----------------
+        # (n, num_state, h, w) -> (n, num_in, h, w)
+        # out = x + self.blocker(self.conv_extend(x_state))
+        out = x + self.blocker(self.conv_extend(x_state))
+
+        if self.transpose:
+            # (B, C, N) -> (B, N, C)
+            out = out.transpose(1,2)
+
+        return out
+
+
 class Block(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., attn_layer=Attention, act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+                 drop_path=0., attn_layer=Attention, act_layer=nn.GELU, norm_layer=nn.LayerNorm, use_glore=False):
         super().__init__()
         self.norm1 = norm_layer(dim)
         # self.attn = Attention(
@@ -140,6 +256,7 @@ class Block(nn.Module):
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        self.glore_unit = GloRe_Unit(197, 197) if use_glore else None
 
     def forward(self, x):
         shape = x.size()
@@ -151,6 +268,9 @@ class Block(nn.Module):
         x = self.norm2(x.reshape(-1, shape[-1])).reshape(*shape)
         # x = x + self.drop_path(self.mlp(self.norm2(x)))
         x = x + self.drop_path(self.mlp(x))
+
+        if self.glore_unit:
+            x = self.glore_unit(x)
 
         return x
 
@@ -218,7 +338,9 @@ class VisionTransformer(nn.Module):
     """
     def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., hybrid_backbone=None, attn_layer=Attention, norm_layer=nn.LayerNorm, act_layer=nn.GELU):
+                 drop_path_rate=0., hybrid_backbone=None,
+                 attn_layer=Attention, norm_layer=nn.LayerNorm, act_layer=nn.GELU,
+                 use_glore=False):
         super().__init__()
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
@@ -238,26 +360,27 @@ class VisionTransformer(nn.Module):
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         self.blocks = nn.ModuleList()
-        for i in range(int(0.5 * depth)):
-            self.blocks.append(
-                Block(
-                    dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio,
-                    qkv_bias=qkv_bias, qk_scale=qk_scale,
-                    drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i],
-                    attn_layer=attn_layer, norm_layer=norm_layer, act_layer=act_layer
-                )
-            )
-        for i in range(int(0.5 * depth), depth):
-            self.blocks.append(
-                Block(
-                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer)
-            )
-        # self.blocks = nn.ModuleList([
-        #     Block(
-        #         dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-        #         drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer)
-        #     for i in range(depth)])
+        # for i in range(int(0.5 * depth)):
+        #     self.blocks.append(
+        #         Block(
+        #             dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio,
+        #             qkv_bias=qkv_bias, qk_scale=qk_scale,
+        #             drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i],
+        #             attn_layer=attn_layer, norm_layer=norm_layer, act_layer=act_layer
+        #         )
+        #     )
+        # for i in range(int(0.5 * depth), depth):
+        #     self.blocks.append(
+        #         Block(
+        #          dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+        #          drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer)
+        #     )
+        self.blocks = nn.ModuleList([
+            Block(
+                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer,
+                use_glore=use_glore)
+            for i in range(depth)])
         self.norm = norm_layer(embed_dim)
 
         # NOTE as per official impl, we could have a pre-logits representation dense layer + tanh here
