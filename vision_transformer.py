@@ -379,7 +379,7 @@ class VisionTransformer(nn.Module):
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer, act_layer=act_layer,
-                use_glore=use_glore)
+                use_glore=((use_glore and True) if i in [2,5,8] else False))
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
 
